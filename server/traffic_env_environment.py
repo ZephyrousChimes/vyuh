@@ -46,23 +46,23 @@ def create_single_intersection_network(
     """
     rng = random.Random(seed)
 
-    center = Node(type=NodeType.JUNCTION)
-    north  = Node(type=NodeType.ENDPOINT)
-    south  = Node(type=NodeType.ENDPOINT)
-    east   = Node(type=NodeType.ENDPOINT)
-    west   = Node(type=NodeType.ENDPOINT)
+    center = Node(id='node-center', type=NodeType.JUNCTION)
+    north  = Node(id='node-north', type=NodeType.ENDPOINT)
+    south  = Node(id='node-south', type=NodeType.ENDPOINT)
+    east   = Node(id='node-east', type=NodeType.ENDPOINT)
+    west   = Node(id='node-west', type=NodeType.ENDPOINT)
 
     # Inbound roads (endpoint -> center)
-    nc = Road(src=north.id,  dst=center.id, base_arrival_rate=base_arrival_rate)
-    sc = Road(src=south.id,  dst=center.id, base_arrival_rate=base_arrival_rate)
-    ec = Road(src=east.id,   dst=center.id, base_arrival_rate=base_arrival_rate)
-    wc = Road(src=west.id,   dst=center.id, base_arrival_rate=base_arrival_rate)
+    nc = Road(id='road-north-to-center', src=north.id,  dst=center.id, base_arrival_rate=base_arrival_rate)
+    sc = Road(id='road-south-to-center', src=south.id,  dst=center.id, base_arrival_rate=base_arrival_rate)
+    ec = Road(id='road-east-to-center', src=east.id,   dst=center.id, base_arrival_rate=base_arrival_rate)
+    wc = Road(id='road-west-to-center', src=west.id,   dst=center.id, base_arrival_rate=base_arrival_rate)
 
     # Outbound roads (center -> endpoint)
-    cn = Road(src=center.id, dst=north.id,  base_arrival_rate=0.0)
-    cs = Road(src=center.id, dst=south.id,  base_arrival_rate=0.0)
-    ce = Road(src=center.id, dst=east.id,   base_arrival_rate=0.0)
-    cw = Road(src=center.id, dst=west.id,   base_arrival_rate=0.0)
+    cn = Road(id='road-center-to-north', src=center.id, dst=north.id,  base_arrival_rate=0.0)
+    cs = Road(id='road-center-to-south', src=center.id, dst=south.id,  base_arrival_rate=0.0)
+    ce = Road(id='road-center-to-east', src=center.id, dst=east.id,   base_arrival_rate=0.0)
+    cw = Road(id='road-center-to-west', src=center.id, dst=west.id,   base_arrival_rate=0.0)
 
     # Seed initial inflight vehicles
     for road in [nc, sc, ec, wc]:
@@ -79,25 +79,25 @@ def create_single_intersection_network(
     # Routes — all 16 inroad x outroad combinations
     # Left turns (sw, wn, ne, es) are always open in left-hand traffic
     # ---------------------------------------------------------------------------
-    nn = Route(inroad=nc.id, outroad=cn.id)  # U-turn — excluded from phases
-    ns = Route(inroad=nc.id, outroad=cs.id)  # through
-    ne = Route(inroad=nc.id, outroad=ce.id)  # left turn (always open)
-    nw = Route(inroad=nc.id, outroad=cw.id)  # right turn
+    nn = Route(id='route-north-center-road-to-center-north-road', inroad=nc.id, outroad=cn.id)  # U-turn — excluded from phases
+    ns = Route(id='route-north-center-road-to-center-south-road', inroad=nc.id, outroad=cs.id)  # through
+    ne = Route(id='route-north-center-road-to-center-east-road', inroad=nc.id, outroad=ce.id)  # left turn (always open)
+    nw = Route(id='route-north-center-road-to-center-west-road', inroad=nc.id, outroad=cw.id)  # right turn
 
-    sn = Route(inroad=sc.id, outroad=cn.id)  # through
-    ss = Route(inroad=sc.id, outroad=cs.id)  # U-turn — excluded
-    se = Route(inroad=sc.id, outroad=ce.id)  # right turn
-    sw = Route(inroad=sc.id, outroad=cw.id)  # left turn (always open)
+    sn = Route(id='route-south-center-road-to-center-north-road', inroad=sc.id, outroad=cn.id)  # through
+    ss = Route(id='route-south-center-road-to-center-south-road', inroad=sc.id, outroad=cs.id)  # U-turn — excluded
+    se = Route(id='route-south-center-road-to-center-east-road', inroad=sc.id, outroad=ce.id)  # right turn
+    sw = Route(id='route-south-center-road-to-center-west-road', inroad=sc.id, outroad=cw.id)  # left turn (always open)
 
-    en = Route(inroad=ec.id, outroad=cn.id)  # right turn
-    es = Route(inroad=ec.id, outroad=cs.id)  # left turn (always open)
-    ee = Route(inroad=ec.id, outroad=ce.id)  # U-turn — excluded
-    ew = Route(inroad=ec.id, outroad=cw.id)  # through
+    en = Route(id='route-east-center-road-to-center-north-road', inroad=ec.id, outroad=cn.id)  # right turn
+    es = Route(id='route-east-center-road-to-center-south-road', inroad=ec.id, outroad=cs.id)  # left turn (always open)
+    ee = Route(id='route-east-center-road-to-center-east-road', inroad=ec.id, outroad=ce.id)  # U-turn — excluded
+    ew = Route(id='route-east-center-road-to-center-west-road', inroad=ec.id, outroad=cw.id)  # through
 
-    wn = Route(inroad=wc.id, outroad=cn.id)  # left turn (always open)
-    ws = Route(inroad=wc.id, outroad=cs.id)  # right turn
-    we = Route(inroad=wc.id, outroad=ce.id)  # through
-    ww = Route(inroad=wc.id, outroad=cw.id)  # U-turn — excluded
+    wn = Route(id='route-west-center-road-to-center-north-road', inroad=wc.id, outroad=cn.id)  # left turn (always open)
+    ws = Route(id='route-west-center-road-to-center-south-road', inroad=wc.id, outroad=cs.id)  # right turn
+    we = Route(id='route-west-center-road-to-center-east-road', inroad=wc.id, outroad=ce.id)  # through
+    ww = Route(id='route-west-center-road-to-center-west-road', inroad=wc.id, outroad=cw.id)  # U-turn — excluded
 
     # Always-open left turns
     left_turns = [ne.id, sw.id, es.id, wn.id]
