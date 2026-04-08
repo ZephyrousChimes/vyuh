@@ -159,6 +159,23 @@ class TrafficEnvironment(Environment):
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._rng   = np.random.default_rng(seed)
 
+        self.network = create_single_intersection_network(
+            seed=seed,
+            base_arrival_rate=0.5,
+        )
+
+        return TrafficObservation(
+            done=False,
+            reward=1.0,
+            task='easy',
+            step=0,
+            road_network=self.network
+        )
+
+        self._task  = task
+        self._state = State(episode_id=str(uuid4()), step_count=0)
+        self._rng   = np.random.default_rng(seed)
+
         if task == "easy":
             self.network = create_single_intersection_network(
                 seed=seed,
@@ -186,6 +203,7 @@ class TrafficEnvironment(Environment):
 
         self._build_lookup_dicts()
         return self._make_observation(reward=0.0, done=False)
+    
 
     def step(self, action: TrafficAction) -> TrafficObservation:
         self._state.step_count += 1

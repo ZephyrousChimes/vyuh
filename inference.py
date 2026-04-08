@@ -291,15 +291,15 @@ async def main() -> None:
 
     base_url = os.getenv("ENV_BASE_URL", "https://etherealwhisper-traffic-env.hf.space")
 
-    for task in ["easy", "medium", "hard"]:
-        if IMAGE_NAME:
-            env = await TrafficEnv.from_docker_image(IMAGE_NAME)
-        else:
-            env = TrafficEnv(base_url=base_url)
+    if IMAGE_NAME:
+        env = await TrafficEnv.from_docker_image(IMAGE_NAME)
+    else:
+        env = TrafficEnv(base_url=base_url)
 
-        async with env:
+    async with env:  # connect once
+        for task in ["easy", "medium", "hard"]:
             await run_task(env, client, task)
-
+            
 
 if __name__ == "__main__":
     asyncio.run(main())
