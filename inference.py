@@ -1,81 +1,98 @@
 """
-Inference Script Example
-===================================
-MANDATORY
-- Before submitting, ensure the following variables are defined in your environment configuration:
-    API_BASE_URL   The API endpoint for the LLM.
-    MODEL_NAME     The model identifier to use for inference.
-    HF_TOKEN       Your Hugging Face / API key.
-    LOCAL_IMAGE_NAME The name of the local image to use for the environment if you are using from_docker_image()
-                     method
+Inference Script — Traffic Signal Control Environment
+=====================================================
+Runs an LLM agent against three tasks: easy, medium, hard.
+Emits mandatory [START] / [STEP] / [END] stdout format.
 
-- Defaults are set only for API_BASE_URL and MODEL_NAME 
-    (and should reflect your active inference setup):
-    API_BASE_URL = os.getenv("API_BASE_URL", "<your-active-endpoint>")
-    MODEL_NAME = os.getenv("MODEL_NAME", "<your-active-model>")
-    
-- The inference script must be named `inference.py` and placed in the root directory of the project
-- Participants must use OpenAI Client for all LLM calls using above variables
-
-STDOUT FORMAT
-- The script must emit exactly three line types to stdout, in this order:
-
-    [START] task=<task_name> env=<benchmark> model=<model_name>
-    [STEP]  step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
-    [END]   success=<true|false> steps=<n> score=<score> rewards=<r1,r2,...,rn>
-
-  Rules:
-    - One [START] line at episode begin.
-    - One [STEP] line per step, immediately after env.step() returns.
-    - One [END] line after env.close(), always emitted (even on exception).
-    - reward and rewards are formatted to 2 decimal places.
-    - done and success are lowercase booleans: true or false.
-    - error is the raw last_action_error string, or null if none.
-    - All fields on a single line with no newlines within a line.
-    - Each tasks should return score in [0, 1]
-
-  Example:
-    [START] task=click-test env=miniwob model=Qwen3-VL-30B
-    [STEP] step=1 action=click('123') reward=0.00 done=false error=null
-    [STEP] step=2 action=fill('456','text') reward=0.00 done=false error=null
-    [STEP] step=3 action=click('789') reward=1.00 done=true error=null
-    [END] success=true steps=3 score=1.00 rewards=0.00,0.00,1.00
+Required env vars:
+    HF_TOKEN       Hugging Face API key
+    API_BASE_URL   LLM endpoint  (default: HF router)
+    MODEL_NAME     Model identifier (default: Qwen2.5-72B-Instruct)
 """
 
 import asyncio
+import json
 import os
 import textwrap
 from typing import List, Optional
 
 from openai import OpenAI
+from traffic_env import TrafficAction, TrafficEnv
+from traffic_env.models import IntersectionPhaseDecision
 
-from my_env_v4 import MyEnvV4Action, MyEnvV4Env
-IMAGE_NAME = os.getenv("IMAGE_NAME") # If you are using docker image 
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
 
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
-MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
-TASK_NAME = os.getenv("MY_ENV_V4_TASK", "echo")
-BENCHMARK = os.getenv("MY_ENV_V4_BENCHMARK", "my_env_v4")
-MAX_STEPS = 8
-TEMPERATURE = 0.7
-MAX_TOKENS = 150
-SUCCESS_SCORE_THRESHOLD = 0.1  # normalized score in [0, 1]
+IMAGE_NAME    = os.getenv("LOCAL_IMAGE_NAME")
+API_KEY       = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+API_BASE_URL  = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME    = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-72B-Instruct")
+BENCHMARK     = "traffic_env"
 
-# Max possible reward: each token contributes 0.1, across all steps
-_MAX_REWARD_PER_STEP = MAX_TOKENS * 0.1
-MAX_TOTAL_REWARD = MAX_STEPS * _MAX_REWARD_PER_STEP
+MAX_STEPS             = 50
+TEMPERATURE           = 0.2   # low — we want deterministic decisions
+MAX_TOKENS            = 300
+SUCCESS_SCORE_THRESHOLD = 0.4
 
-SYSTEM_PROMPT = textwrap.dedent(
-    """
-    You are interacting with a simple echo environment.
-    Each turn you must send a message. The environment will echo it back.
-    Reward is proportional to message length: reward = len(message) * 0.1
-    Your goal is to maximize total reward by sending meaningful, substantive messages.
-    Reply with exactly one message string — no quotes, no prefixes, just the message text.
-    """
-).strip()
+# Reward is in [-1, 1]. Normalise episode score to [0, 1].
+# Theoretical best per step is ~0.2 (all lanes clear). Over 50 steps = 10.
+MAX_TOTAL_REWARD = MAX_STEPS * 0.2
 
+# ---------------------------------------------------------------------------
+# Prompts
+# ---------------------------------------------------------------------------
+
+SYSTEM_PROMPT = textwrap.dedent("""
+    You are a traffic signal controller for a 4-way intersection.
+    This is a left-hand traffic network (Indian road model).
+    Left turns are always open. You control which other movements get a green light.
+
+    Each step you receive the current network state as JSON.
+    You must respond with a JSON object — nothing else, no explanation, no markdown.
+
+    Response format:
+    {
+        "decisions": [
+            {"intersection_id": "<id>", "phase_id": "<phase_id>"}
+        ]
+    }
+
+    Available phases for the main intersection:
+    - "ALL_RED"      : All signals red. Use for transitions.
+    - "NS_THROUGH"   : North-South through traffic + left turns.
+    - "EW_THROUGH"   : East-West through traffic + left turns.
+    - "N_RIGHT"      : North right turn + left turns.
+    - "S_RIGHT"      : South right turn + left turns.
+
+    Strategy:
+    - Prioritise phases that drain the longest waiting queues.
+    - Avoid leaving a direction waiting too long (starvation).
+    - In hard task, a surge may hit one road — react quickly.
+    - Do not stay on ALL_RED unnecessarily.
+
+    You will be penalised for high waiting queues and rewarded for clearing them.
+""").strip()
+
+
+def build_user_prompt(obs_json: str, step: int, last_reward: float, history: List[str]) -> str:
+    history_block = "\n".join(history[-4:]) if history else "None"
+    return textwrap.dedent(f"""
+        Step: {step}
+        Last reward: {last_reward:.2f}
+        Recent history:
+        {history_block}
+
+        Current network state:
+        {obs_json}
+
+        Respond with your phase decision JSON now.
+    """).strip()
+
+
+# ---------------------------------------------------------------------------
+# Logging — mandatory format
+# ---------------------------------------------------------------------------
 
 def log_start(task: str, env: str, model: str) -> None:
     print(f"[START] task={task} env={env} model={model}", flush=True)
@@ -83,105 +100,205 @@ def log_start(task: str, env: str, model: str) -> None:
 
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
     error_val = error if error else "null"
-    done_val = str(done).lower()
+    # Sanitise action string — no newlines allowed on a single log line
+    action_str = action.replace("\n", " ").replace("\r", "")
     print(
-        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
+        f"[STEP] step={step} action={action_str} reward={reward:.2f} "
+        f"done={str(done).lower()} error={error_val}",
         flush=True,
     )
 
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
+    print(
+        f"[END] success={str(success).lower()} steps={steps} "
+        f"score={score:.3f} rewards={rewards_str}",
+        flush=True,
+    )
 
 
-def build_user_prompt(step: int, last_echoed: str, last_reward: float, history: List[str]) -> str:
-    history_block = "\n".join(history[-4:]) if history else "None"
-    return textwrap.dedent(
-        f"""
-        Step: {step}
-        Last echoed message: {last_echoed!r}
-        Last reward: {last_reward:.2f}
-        Previous steps:
-        {history_block}
-        Send your next message.
-        """
-    ).strip()
+# ---------------------------------------------------------------------------
+# LLM call + action parsing
+# ---------------------------------------------------------------------------
 
+def get_action(
+    client: OpenAI,
+    obs_json: str,
+    step: int,
+    last_reward: float,
+    history: List[str],
+    intersection_id: str,
+) -> tuple[TrafficAction, str, Optional[str]]:
+    """
+    Ask the LLM for a phase decision.
+    Returns (TrafficAction, raw_response_str, error_or_None).
+    Falls back to NS_THROUGH on any parse failure.
+    """
+    user_prompt = build_user_prompt(obs_json, step, last_reward, history)
+    raw = ""
+    error = None
 
-def get_model_message(client: OpenAI, step: int, last_echoed: str, last_reward: float, history: List[str]) -> str:
-    user_prompt = build_user_prompt(step, last_echoed, last_reward, history)
     try:
         completion = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
+                {"role": "user",   "content": user_prompt},
             ],
             temperature=TEMPERATURE,
             max_tokens=MAX_TOKENS,
             stream=False,
         )
-        text = (completion.choices[0].message.content or "").strip()
-        return text if text else "hello"
+        raw = (completion.choices[0].message.content or "").strip()
+
+        # Strip markdown fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+
+        parsed = json.loads(raw)
+        decisions = [
+            IntersectionPhaseDecision(
+                intersection_id=d["intersection_id"],
+                phase_id=d["phase_id"],
+            )
+            for d in parsed["decisions"]
+        ]
+        return TrafficAction(decisions=decisions), raw, None
+
     except Exception as exc:
-        print(f"[DEBUG] Model request failed: {exc}", flush=True)
-        return "hello"
+        error = str(exc)
+        print(f"[DEBUG] Parse failed: {exc} | raw: {raw!r}", flush=True)
+        # Safe fallback
+        fallback = TrafficAction(decisions=[
+            IntersectionPhaseDecision(
+                intersection_id=intersection_id,
+                phase_id="NS_THROUGH",
+            )
+        ])
+        return fallback, raw, error
 
 
-async def main() -> None:
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+# ---------------------------------------------------------------------------
+# Single task episode
+# ---------------------------------------------------------------------------
 
-    env = await MyEnvV4Env.from_docker_image(IMAGE_NAME)
-
-    history: List[str] = []
+async def run_task(env: TrafficEnv, client: OpenAI, task: str) -> None:
     rewards: List[float] = []
+    history: List[str]   = []
     steps_taken = 0
     score = 0.0
     success = False
 
-    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
+    log_start(task=task, env=BENCHMARK, model=MODEL_NAME)
 
     try:
-        result = await env.reset() # OpenENV.reset()
-        last_echoed = result.observation.echoed_message
+        result     = await env.reset(task=task)
+        obs        = result.observation
         last_reward = 0.0
+
+        # Get the main intersection id from the first observation
+        intersection_id = (
+            obs.road_network.intersections[0].id
+            if obs.road_network.intersections
+            else "intersection_center"
+        )
 
         for step in range(1, MAX_STEPS + 1):
             if result.done:
                 break
 
-            message = get_model_message(client, step, last_echoed, last_reward, history)
+            # Serialise only the parts the LLM needs — trim noise
+            obs_summary = _summarise_obs(obs)
+            obs_json    = json.dumps(obs_summary, indent=2)
 
-            result = await env.step(MyEnvV4Action(message=message))
-            obs = result.observation
+            action, raw, error = get_action(
+                client, obs_json, step, last_reward, history, intersection_id
+            )
 
-            reward = result.reward or 0.0
-            done = result.done
-            error = None
+            result      = await env.step(action)
+            obs         = result.observation
+            reward      = result.reward or 0.0
+            done        = result.done
 
             rewards.append(reward)
             steps_taken = step
-            last_echoed = obs.echoed_message
             last_reward = reward
 
-            log_step(step=step, action=message, reward=reward, done=done, error=error)
+            # Compact action string for log line
+            action_str = json.dumps(
+                [{"i": d.intersection_id, "p": d.phase_id} for d in action.decisions]
+            ).replace(" ", "")
 
-            history.append(f"Step {step}: {message!r} -> reward {reward:+.2f}")
+            log_step(step=step, action=action_str, reward=reward, done=done, error=error)
+            history.append(f"Step {step}: phase={action_str} reward={reward:+.2f}")
 
             if done:
                 break
 
-        score = sum(rewards) / MAX_TOTAL_REWARD if MAX_TOTAL_REWARD > 0 else 0.0
-        score = min(max(score, 0.0), 1.0)  # clamp to [0, 1]
+        # Normalise to [0, 1]
+        # Rewards are in [-1, 1]. Shift to [0, 2] then normalise by 2*MAX_STEPS.
+        shifted = sum(r + 1.0 for r in rewards)
+        score   = shifted / (2.0 * MAX_STEPS)
+        score   = min(max(score, 0.0), 1.0)
         success = score >= SUCCESS_SCORE_THRESHOLD
 
+    except Exception as exc:
+        print(f"[DEBUG] Episode error: {exc}", flush=True)
+
     finally:
-        try:
-            await env.close()
-        except Exception as e:
-            print(f"[DEBUG] env.close() error (container cleanup): {e}", flush=True)
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+
+
+def _summarise_obs(obs) -> dict:
+    """
+    Compact observation for the LLM — just what it needs to decide.
+    Full Pydantic object would be too verbose.
+    """
+    roads_summary = []
+    for road in obs.road_network.roads:
+        roads_summary.append({
+            "id":      road.id,
+            "waiting": road.waiting,
+            "inflight": road.inflight,
+        })
+
+    intersections_summary = []
+    for ix in obs.road_network.intersections:
+        intersections_summary.append({
+            "id":            ix.id,
+            "current_phase": ix.phase,
+            "valid_phases":  [p.id for p in ix.phase_set],
+        })
+
+    return {
+        "task":          obs.task,
+        "step":          obs.step,
+        "roads":         roads_summary,
+        "intersections": intersections_summary,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Main — run all three tasks sequentially
+# ---------------------------------------------------------------------------
+
+async def main() -> None:
+    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+
+    base_url = os.getenv("ENV_BASE_URL", "https://etherealwhisper-traffic-env.hf.space")
+
+    for task in ["easy", "medium", "hard"]:
+        if IMAGE_NAME:
+            env = await TrafficEnv.from_docker_image(IMAGE_NAME)
+        else:
+            env = TrafficEnv(base_url=base_url)
+
+        async with env:
+            await run_task(env, client, task)
 
 
 if __name__ == "__main__":

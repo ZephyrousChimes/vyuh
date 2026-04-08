@@ -1,5 +1,5 @@
 ---
-title: Traffic Env Environment Server
+title: Traffic Environment Server
 emoji: 🚦
 colorFrom: red
 colorTo: green
