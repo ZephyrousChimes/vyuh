@@ -118,6 +118,7 @@ class RoadNetwork(BaseModel):
     roads: List[Road]
     intersections: List[Intersection]
 
+
 class IntersectionPhaseDecision(BaseModel):
     intersection_id: str
     phase_id: str
