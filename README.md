@@ -1,7 +1,7 @@
 ---
 title: Traffic Env Environment Server
-emoji: 📀
-colorFrom: purple
+emoji: 🚦
+colorFrom: red
 colorTo: green
 sdk: docker
 pinned: false
@@ -263,57 +263,62 @@ traffic_env/
 ```
 
 
+## The Traffic Model
+
+We model traffic in two layers
+- **The Control Plane**: A graph of nodes and roads connecting them as edges
+- **The Data Plane**: A mini-graph at each node, where vertices are roads and edges being possible transfer from one road to another
+
+This distinction helps separate global routing and local scheduling tasks.
+
 ## Observation Model
 
-At each turn, the agent can see the entire network state.
+At each turn, the agent can see the entire road network state.
 We have described below what a network state constitutes.
 
+1) The Nodes
+Nodes are possible points where you can control the traffic using a traffic signal.
+It is of two types- JUNCTION and ENDPOINT.
 
-### Data Plane and Control Plane
+JUNCTIONs are actual intersections where we can direct flow of traffic.
 
-The network is divided into two layers- 
-- **the control plane**: 
-the high level view of the road network connecting different nodes.
+ENDPOINTs are sources and sinks of traffic. Roads beyond these nodes are NOT under our jurisdiction.
 
-- **the data plane**:
-the low level control at each intersection.
+2) The Roads
+Roads are edges between nodes in the control plane.
+Roads are nodes in the data plane graph at each intersection.
 
-Both planes are represented as their own graphs. The control plane consists of different junctions and roads between them. The data plane consists of the various roads that join at the junction and the edges between them tell the ability to go from one road to another.
-Lanes are treated as different roads across which we can change freely.
+Roads are the dynamic element in the simulation.
 
-Any agent can do whatever it wills with this information.
+Traffic is loaded onto and out of roads in the form of 
+`inflight` and `waiting` queue lengths. 
 
+3) The Intersections
+Intersection are the data plane graph representation.
+Each node has its own Intersection.
+An intersection contains an edge-list that tells our options to *route* traffic from one road to another road. The source road and target road are encapsulate in a Route object.
 
-### Intersection (Nodes)
+Each intersection has a Phase- the collection of routes that are opened at a time.
 
-Each intersection is in a unique phase at a given point of time. 
+Intersection has a set of *safe* phases in the `phase_set` attribute. The agent is allowed only to choose from this phase set.
 
-Each intersection has a set of instream queues and outstream nodes. 
-In the most general case, the agent can route the traffic from any instream queue to any outstream node, individually.
+4) RoadNetwork
 
-But usually not all mappings are valid. 
-For some instream lanes, it is not possible to go all the outstream nodes. 
-For some instream lanes, "allowing them through" means traffic moves into multiple outstream nodes.
-Also, we have a set of safe instream-outstream pairs that can be opened simultaneously avoiding accidents.
+This is the Observation.
+It has three things-
+- The Node List
+- The Road List (it is an edge list)
+- The Intersection List
 
-The valid choices are what we call **phases**. 
+Looking at each road in the list, particularly its `inflight` and `waiting` attributes, one can get information of the moving traffic.
 
-### Phases
+## Actions
 
-Phases are the valid combinations of hardcoded and provided by the environment.
+The Action is simple- for each intersection, tell the phase it is in. Done.
 
-Phases are unordered sets of **Routes**.
-
-### Routes
-
-Routes are pairs of $<\text{instream lane}, \text{outstream node}>$
-
-
-### Instream Lane
-
-It is a distribution of wait times. It is stored as ??? How do we store distributions? Histograms? idk...
-Also, we may not include information about individual vehicles, which way they want to go, where they are in the queues, because such fine grained control is usually not possible in real life, even if we knew these informations.
-
+```python
+TrafficAction()
+```
 
 ## Reward Model
 
@@ -324,38 +329,3 @@ Also, we may not include information about individual vehicles, which way they w
 ### Grader 3: Grader 2 + Handle priority vehicles
 
 One can choose the level they want the environment to test them on.
-
-
-## One-Intersection Four Ways Observation
-
-### Four Instream Lanes
-- North
-- South
-- East
-- West
-
-### Routes
-- North
-- South
-- East
-- West
-
-### Phases
-{SW, WN, NE, ES} is common left-turns, always open in Left-Aligned roads. We will call this set O.
-
-{SS, NN, WW, EE} will be considered as using the roundabout to go back. 
-
-{SN, NS, WE, EW} will be considered the through paths.
-
-{SE, WS, NW, EN} will be the right turns.
-
-The allowed Phases are as follows:
-
-- $O \Cup {SS, SE, SN}$
-- $O \Cup {NN, NW, NS}$
-- $O \Cup {EE, EN, EW}$
-- $O \Cup {WW, WS, WS}$
-
-## One-Intersection Four Ways Action
-
-Just one of the four actions corresponding to the valid phases.
