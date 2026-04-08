@@ -13,7 +13,15 @@ tags:
 
 # Traffic Env Environment
 
-A simple test environment that echoes back messages. Perfect for testing the env APIs as well as demonstrating environment usage patterns.
+A traffic network environment that provides control of all the traffic signals to your agent.
+
+There are multiple levels of grading, which correspond to more and more tedious traffic conditions. They range from simple rational impatient driver queues to priority vehicles that need routing at the earliest.
+
+The environment understands that road networks and intersection abilities and semantics vary greatly across the world. To accomodate that, it has been kept agnostic.
+
+The current implementation just implements on traffic intersection for roads that are left-aligned (India, Europe, etc.).
+
+The transfer to other conventions and actual road network topologies is fairly straightforward, in the given framework.
 
 ## Quick Start
 
@@ -253,3 +261,101 @@ traffic_env/
     ├── app.py             # FastAPI application (HTTP + WebSocket endpoints)
     └── Dockerfile         # Container image definition
 ```
+
+
+## Observation Model
+
+At each turn, the agent can see the entire network state.
+We have described below what a network state constitutes.
+
+
+### Data Plane and Control Plane
+
+The network is divided into two layers- 
+- **the control plane**: 
+the high level view of the road network connecting different nodes.
+
+- **the data plane**:
+the low level control at each intersection.
+
+Both planes are represented as their own graphs. The control plane consists of different junctions and roads between them. The data plane consists of the various roads that join at the junction and the edges between them tell the ability to go from one road to another.
+Lanes are treated as different roads across which we can change freely.
+
+Any agent can do whatever it wills with this information.
+
+
+### Intersection (Nodes)
+
+Each intersection is in a unique phase at a given point of time. 
+
+Each intersection has a set of instream queues and outstream nodes. 
+In the most general case, the agent can route the traffic from any instream queue to any outstream node, individually.
+
+But usually not all mappings are valid. 
+For some instream lanes, it is not possible to go all the outstream nodes. 
+For some instream lanes, "allowing them through" means traffic moves into multiple outstream nodes.
+Also, we have a set of safe instream-outstream pairs that can be opened simultaneously avoiding accidents.
+
+The valid choices are what we call **phases**. 
+
+### Phases
+
+Phases are the valid combinations of hardcoded and provided by the environment.
+
+Phases are unordered sets of **Routes**.
+
+### Routes
+
+Routes are pairs of $<\text{instream lane}, \text{outstream node}>$
+
+
+### Instream Lane
+
+It is a distribution of wait times. It is stored as ??? How do we store distributions? Histograms? idk...
+Also, we may not include information about individual vehicles, which way they want to go, where they are in the queues, because such fine grained control is usually not possible in real life, even if we knew these informations.
+
+
+## Reward Model
+
+### Grader 1: Do not attend to empty lanes instead of waiting lanes
+
+### Grader 2: Grader 1 + Handle sudden surges
+
+### Grader 3: Grader 2 + Handle priority vehicles
+
+One can choose the level they want the environment to test them on.
+
+
+## One-Intersection Four Ways Observation
+
+### Four Instream Lanes
+- North
+- South
+- East
+- West
+
+### Routes
+- North
+- South
+- East
+- West
+
+### Phases
+{SW, WN, NE, ES} is common left-turns, always open in Left-Aligned roads. We will call this set O.
+
+{SS, NN, WW, EE} will be considered as using the roundabout to go back. 
+
+{SN, NS, WE, EW} will be considered the through paths.
+
+{SE, WS, NW, EN} will be the right turns.
+
+The allowed Phases are as follows:
+
+- $O \Cup {SS, SE, SN}$
+- $O \Cup {NN, NW, NS}$
+- $O \Cup {EE, EN, EW}$
+- $O \Cup {WW, WS, WS}$
+
+## One-Intersection Four Ways Action
+
+Just one of the four actions corresponding to the valid phases.
