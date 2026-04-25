@@ -1,5 +1,5 @@
 from .road import Road, Cell
-from ...models import IntersectionObservation
+from models import IntersectionObservation
 
 from dataclasses import dataclass
 from itertools import combinations
