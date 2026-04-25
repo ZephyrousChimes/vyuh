@@ -182,9 +182,19 @@ class TrafficEnvironment(Environment):
         self._build_intersection()
         return self._observe(reward=0.0, done=False)
 
+
+    default_action = TrafficAction(
+        phase_routes = [
+            [
+                ('north_in', 'east_out'), ('east_in', 'south_out'),
+                ('south_in', 'west_out'), ('west_in', 'north_out'),
+            ]
+        ]
+    )
+
     def step(
         self,
-        action: TrafficAction,
+        action: TrafficAction = default_action,
         timeout_s: Optional[float] = None,
         **kwargs: Any,
     ) -> TrafficObservation:
@@ -346,7 +356,7 @@ class TrafficEnvironment(Environment):
         if self._priority_config is None:
             raise ValueError('Tried to observe with None as self._priority_config')
         
-        
+
         road_obs = [
             RoadObservation(
                 id=road.id,
