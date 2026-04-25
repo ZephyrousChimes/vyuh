@@ -49,7 +49,7 @@ app = create_app(
     TrafficAction,
     TrafficObservation,
     env_name="traffic_env",
-    max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
+    max_concurrent_envs=10,  # increase this number to allow more concurrent WebSocket sessions
 )
 
 HOST = '0.0.0.0'
