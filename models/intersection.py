@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Tuple, NewType
 
 
@@ -16,3 +16,5 @@ class IntersectionObservation(BaseModel):
     conflicts: List[Tuple[str, str]]
 
     current_phase: List[str]
+    time_in_phase: float = Field(default=0.0)
+    min_green_time: float = Field(default=0.0)

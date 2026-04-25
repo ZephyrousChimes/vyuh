@@ -112,7 +112,7 @@ def jains_fairness(queues: List[float]) -> float:
 
 def make_road(road_id: str) -> Road:
     return Road(
-        id=road_id,
+        id=Road.RoadId(road_id),
         cells=[
             Cell(jam_cap=10.0, flow_cap=3.0, free_flow=1.0, shock_speed=0.5)
             for _ in range(8)
@@ -182,7 +182,15 @@ class TrafficEnvironment(Environment):
         self._build_intersection()
         return self._observe(reward=0.0, done=False)
 
-    def step(self, action: TrafficAction) -> TrafficObservation:
+    def step(
+        self,
+        action: TrafficAction,
+        timeout_s: Optional[float] = None,
+        **kwargs: Any,
+    ) -> TrafficObservation:
+        if self._intersection is None or self._priority_config is None:
+            raise ValueError('Tried to step with None as self._intersection')
+        
         self._state.step_count += 1
         tick = self._state.step_count
 
@@ -280,6 +288,9 @@ class TrafficEnvironment(Environment):
     # ── Reward ───────────────────────────────────────────────────────────────
 
     def _compute_reward(self, clearance_bonus: float = 0.0) -> float:
+        if self._intersection is None or self._priority_config is None:
+            raise ValueError('Tried to compute reward with None as intersection')
+        
         inroads       = self._intersection.inroads
         arrival_rates = list(self._arrival_rates.values())
 
@@ -330,6 +341,12 @@ class TrafficEnvironment(Environment):
     # ── Observation ──────────────────────────────────────────────────────────
 
     def _observe(self, reward: float, done: bool) -> TrafficObservation:
+        if self._intersection is None:
+            raise ValueError('Tried to observe with None as self._intersecton')
+        if self._priority_config is None:
+            raise ValueError('Tried to observe with None as self._priority_config')
+        
+        
         road_obs = [
             RoadObservation(
                 id=road.id,
@@ -339,6 +356,7 @@ class TrafficEnvironment(Environment):
         ]
 
         ix = self._intersection
+        
         intersection_obs = IntersectionObservation(
             id=str(ix.id),
             inroads=[r.id for r in ix.inroads],
