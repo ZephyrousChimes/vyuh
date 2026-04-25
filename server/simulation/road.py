@@ -1,9 +1,7 @@
 from dataclasses import dataclass, field
-from typing import List, Tuple, Optional, NewType, override
+from typing import List, Optional, NewType
 
-from models.road import RoadObservation
-
-from ...models import CellObservation
+from models import RoadObservation, CellObservation
 
 
 @dataclass
@@ -57,7 +55,6 @@ class PhantomSink(Cell):
     free_flow: float = field(default=1.0, init=False)
     shock_speed: float = field(default=1.0, init=False)
 
-    @override
     def update(self, inflow: float, outflow: float):
         pass
 

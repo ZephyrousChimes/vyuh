@@ -151,7 +151,7 @@ class TrafficEnvironment(Environment):
         self._priority_config   = None
         self._priority_active   = False
         self._priority_cleared  = False
-        self._cumulative_reward = 0.0
+        self._cumulative_reward = 0.0 
         self._reset_count       = 0
 
     # ── OpenEnv interface ────────────────────────────────────────────────────

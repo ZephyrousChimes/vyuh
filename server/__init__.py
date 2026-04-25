@@ -8,6 +8,6 @@
 
 from .traffic_env_environment import TrafficEnvironment
 
-from .simulation import * 
+import server.simulation as simulation
 
 __all__ = ["TrafficEnvironment", "simulation"]
