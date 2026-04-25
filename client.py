@@ -54,9 +54,20 @@ class TrafficEnv(
         Returns:
             Dictionary representation suitable for JSON encoding
         """
-        return {
-            "message": action.message,
-        }
+        if action is None:
+            action = TrafficAction(
+                phase_routes=[
+                    [
+                        ('north_in', 'east_out'),
+                        ('east_in', 'south_out'),
+                        ('south_in', 'west_out'),
+                        ('west_in', 'north_out')
+                    ]
+                ]
+            )
+
+        return action.model_dump()
+    
 
     def _parse_result(self, payload: Dict) -> StepResult[TrafficObservation]:
         """
@@ -69,12 +80,19 @@ class TrafficEnv(
             StepResult with TrafficObservation
         """
         obs_data = payload.get("observation", {})
+        # observation = TrafficObservation(
+        #     echoed_message=obs_data.get("echoed_message", ""),
+        #     message_length=obs_data.get("message_length", 0),
+        #     done=payload.get("done", False),
+        #     reward=payload.get("reward"),
+        #     metadata=obs_data.get("metadata", {}),
+
+        # )
+
+        # observe_road = lambda road_dict: 
+
         observation = TrafficObservation(
-            echoed_message=obs_data.get("echoed_message", ""),
-            message_length=obs_data.get("message_length", 0),
-            done=payload.get("done", False),
-            reward=payload.get("reward"),
-            metadata=obs_data.get("metadata", {}),
+            **obs_data
         )
 
         return StepResult(

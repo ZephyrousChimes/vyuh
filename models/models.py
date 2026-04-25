@@ -14,8 +14,8 @@ from openenv.core.env_server.types import Action, Observation
 from pydantic import BaseModel, Field
 from typing import List, Tuple, Optional
 
-from .intersection import IntersectionObservation
-from .road import RoadObservation
+from models.intersection import IntersectionObservation
+from models.road import RoadObservation
 
 
 class TrafficAction(Action):
