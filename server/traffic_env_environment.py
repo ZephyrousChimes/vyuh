@@ -196,7 +196,7 @@ class TrafficEnvironment(Environment):
 
     def step(
         self,
-        action: TrafficAction = default_action,
+        action: TrafficAction,
         timeout_s: Optional[float] = None,
         **kwargs: Any,
     ) -> TrafficObservation:

@@ -41,5 +41,5 @@ server = "traffic_env.server.app:main"
 
 [tool.setuptools]
 include-package-data = true
-packages = ["traffic_env", "traffic_env.server"]
+packages = ["traffic_env", "traffic_env.server", "traffic_env.models"]
 package-dir = { "traffic_env" = ".", "traffic_env.server" = "server" }
