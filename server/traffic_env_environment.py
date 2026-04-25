@@ -158,15 +158,17 @@ class TrafficEnvironment(Environment):
 
     def reset(
         self,
-        seed: Optional[int] = None,
+        seed: Optional[int] = 42,
         episode_id: Optional[str] = None,
         task: str = "easy",
         **kwargs: Any,
     ) -> TrafficObservation:
 
+        # Seed is set to 42 be default
         if seed is not None:
             random.seed(seed)
 
+        # 
         self._task   = task if task in TASK_CONFIGS else "easy"
         config       = TASK_CONFIGS[self._task]
 
@@ -198,7 +200,7 @@ class TrafficEnvironment(Environment):
         timeout_s: Optional[float] = None,
         **kwargs: Any,
     ) -> TrafficObservation:
-        if self._intersection is None or self._priority_config is None:
+        if self._intersection is None:
             raise ValueError('Tried to step with None as self._intersection')
         
         self._state.step_count += 1
@@ -232,6 +234,9 @@ class TrafficEnvironment(Environment):
         # check priority clearance
         clearance_bonus = 0.0
         if self._priority_active and not self._priority_cleared:
+            if self._priority_config is None:
+                raise ValueError('[OBSERVE] self._priority_active is True but self._priority_config is None')
+            
             road = self._all_roads[self._priority_config["approach"]]
             if road.cells[-1].curr < 1.0:
                 self._priority_cleared = True
@@ -298,7 +303,7 @@ class TrafficEnvironment(Environment):
     # ── Reward ───────────────────────────────────────────────────────────────
 
     def _compute_reward(self, clearance_bonus: float = 0.0) -> float:
-        if self._intersection is None or self._priority_config is None:
+        if self._intersection is None:
             raise ValueError('Tried to compute reward with None as intersection')
         
         inroads       = self._intersection.inroads
@@ -336,6 +341,9 @@ class TrafficEnvironment(Environment):
                 - 0.1            * starvation
             )
             if self._priority_active:
+                if self._priority_config is None:
+                    raise ValueError('[OBSERVE] self._priority_active is True but self._priority_config is None')
+                
                 approach = self._priority_config["approach"]
                 road     = self._all_roads[approach]
                 pv_wait  = road.cells[-1].curr / max(self._arrival_rates.get(approach, 1.0), 0.1)
@@ -352,10 +360,7 @@ class TrafficEnvironment(Environment):
 
     def _observe(self, reward: float, done: bool) -> TrafficObservation:
         if self._intersection is None:
-            raise ValueError('Tried to observe with None as self._intersecton')
-        if self._priority_config is None:
-            raise ValueError('Tried to observe with None as self._priority_config')
-        
+            raise ValueError('Tried to observe with None as self._intersecton')        
 
         road_obs = [
             RoadObservation(
@@ -380,6 +385,9 @@ class TrafficEnvironment(Environment):
 
         pv_obs = None
         if self._priority_active:
+            if self._priority_config is None:
+                raise ValueError('[OBSERVE] self._priority_active is True but self._priority_config is None')
+            
             approach      = self._priority_config["approach"]
             road          = self._all_roads[approach]
             cells_to_stop = next(
