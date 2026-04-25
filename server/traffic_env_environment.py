@@ -209,14 +209,6 @@ class TrafficEnvironment(Environment):
             road = self._all_roads[self._priority_config["approach"]]
             road.source.curr += 5.0
 
-        default_action = TrafficAction(
-            phase_routes = [
-                [
-                    'north_in_east_out', 'east_in_south_out',
-                    'south_in_west_out', 'west_in_north_out',
-                ]
-            ]
-        )
 
         # apply phase action
         if action.phase_routes:

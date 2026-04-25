@@ -54,17 +54,6 @@ class TrafficEnv(
         Returns:
             Dictionary representation suitable for JSON encoding
         """
-        if action is None:
-            action = TrafficAction(
-                phase_routes=[
-                    [
-                        ('north_in', 'east_out'),
-                        ('east_in', 'south_out'),
-                        ('south_in', 'west_out'),
-                        ('west_in', 'north_out')
-                    ]
-                ]
-            )
 
         return action.model_dump()
     

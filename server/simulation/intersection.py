@@ -29,7 +29,7 @@ class Intersection:
     time_in_phase: int = 0
     min_green_time: int = 7
  
-    # routing_table[inroad_id] = list of outroad_ids currently active
+    # routing_table[inroad_id] = list of outroad_ids currently activ
     # built fresh each phase change
     routing_table: Dict[str, List[Road]] = field(default_factory=dict)
  
