@@ -19,7 +19,10 @@ from .road import RoadObservation
 
 
 class TrafficAction(Action):
-    """Action for the Traffic Env environment - just a message to echo."""
+    """
+    Action for the Traffic Env environment 
+    List of routes for each intersection.
+    """
 
     phase_routes: List[List[Tuple[str, str]]]
 
