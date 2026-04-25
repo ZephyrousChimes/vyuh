@@ -31,6 +31,7 @@ class PriorityVehicleObservation(BaseModel):
     approach: str       # which inroad
     cells_to_stop: int  # how far from stop line
 
+
 class TrafficObservation(Observation):
     roads: List[RoadObservation]
     intersections: List[IntersectionObservation]
