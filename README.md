@@ -253,3 +253,29 @@ traffic_env/
     ├── app.py             # FastAPI application (HTTP + WebSocket endpoints)
     └── Dockerfile         # Container image definition
 ```
+
+
+# Traffic Environment for OpenEnv
+
+## Scenario Complexities
+This environment allows you to regulate differnt traffic circumstances.
+
+1) **Basic Uniform flow** tests for safety. The sole purpose here is to ensure one does not commit to conflicting routes. This is a hard limit and any reward will be anulled if accident scenarios are actioned.
+
+2) **Non-Uniform flow** tests for fairness under assymetric traffic flow across the intersection. This tests for intelligent routing and forecasting. Again, conflicting routes anull any reward.
+
+3) **Priority Vehicles** tests for emergency scenarios that require certain traffic flows to gain more priority in right of way. Every tick of wait for priority vehicles
+
+## Quick Start
+
+```python
+from traffic_env import TrafficEnv, CarlaAction
+
+# Async by default — use async with / await
+async with CarlaEnv(base_url="http://localhost:8000") as env:
+    result = await env.reset()
+    print(result.observation.scene_description)
+
+    result = await env.step(CarlaAction(action_type="emergency_stop"))
+    print(f"Speed after braking: {result.observation.speed_kmh:.1f} km/h")
+```

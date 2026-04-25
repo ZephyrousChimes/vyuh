@@ -27,7 +27,7 @@ class IntersectionObservation(BaseModel):
     current_phase: List[str]
     time_in_phase: float = Field(default=0.0)
     min_green_time: float = Field(default=0.0)
-    
+
 
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
@@ -52,7 +52,7 @@ class TrafficAction(Action):
     List of routes for each intersection.
     """
 
-    phase_routes: List[List[Tuple[str, str]]]
+    phase_routes: List[List[str]]
 
 
 class PriorityVehicleObservation(BaseModel):

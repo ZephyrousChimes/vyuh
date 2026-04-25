@@ -1,9 +1,9 @@
 from .road import Road, Cell
 from models import IntersectionObservation
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import combinations
-from typing import List, Tuple, Set, NewType
+from typing import Dict, List, Tuple, Set, NewType
 
 
 @dataclass
@@ -18,73 +18,71 @@ class Route:
 @dataclass
 class Intersection:
     IntersectionId = NewType('IntersectionId', str)
-
-    id: IntersectionId
+ 
+    id: str
     inroads: List[Road]
     outroads: List[Road]
     routes: List[Route]
-    conflicts: Set[Tuple[Route.RouteId, Route.RouteId]]  
-
-    current_phase: List[Route]
+    conflicts: Set[Tuple[str, str]]
+ 
+    current_phase: List[Route] = field(default_factory=list)
     time_in_phase: int = 0
     min_green_time: int = 7
-
-
+ 
+    # routing_table[inroad_id] = list of outroad_ids currently active
+    # built fresh each phase change
+    routing_table: Dict[str, List[Road]] = field(default_factory=dict)
+ 
     def set_phase(self, route_ids: List[str]) -> bool:
-        """Validate and apply new phase. Returns False if invalid."""
-        # enforce minimum green time
         if self.time_in_phase < self.min_green_time:
             return False
-
-        # validate no conflicts
+ 
         for r1, r2 in combinations(route_ids, 2):
             if (r1, r2) in self.conflicts or (r2, r1) in self.conflicts:
                 return False
-
-
-        self.block_current_routes()
-        self.allow_new_routes(route_ids)
-
+ 
+        self.current_phase = [r for r in self.routes if r.id in route_ids]
         self.time_in_phase = 0
+ 
+        # rebuild routing table — inroad → list of outroads
+        self.routing_table = {}
+        for route in self.current_phase:
+            inid = route.inroad.id
+            if inid not in self.routing_table:
+                self.routing_table[inid] = []
+            self.routing_table[inid].append(route.outroad)
+ 
         return True
-
-
-    def block_current_routes(self):
-        # Just remove the phantom cells. Default is blocking.
-        for route in self.current_phase:
-            route.inroad.set_sink(None)
-            route.outroad.set_source(None)
-            
-
-    def allow_new_routes(self, route_ids: List[str]):
-        # Set the current phase using the route ids
-        self.current_phase = [
-            r for r in self.routes if r.id in route_ids
-        ]
-
-        # For each route, create a phantom cell and set the sink and source
-        for route in self.current_phase:
-            phantom = Cell(
-                jam_cap=10.0,
-                flow_cap=3.0,
-                free_flow=1.0, 
-                shock_speed=0.5,   
-            )
-
-            route.inroad.set_sink(phantom)
-            route.outroad.set_source(phantom)
-    
-
+ 
     def step(self):
-        # step all roads — CTM handles everything
-        for road in self.inroads:
+        # For each inroad with active routes —
+        # read stop line demand, split evenly across outroads, inject
+        for inroad_id, outroads in self.routing_table.items():
+            inroad = next(r for r in self.inroads if r.id == inroad_id)
+ 
+            available = inroad.stop_line_demand()
+            if available <= 0 or not outroads:
+                continue
+ 
+            # clean split — equal fraction to each active outroad
+            per_out = available / len(outroads)
+ 
+            total_sent = 0.0
+            for outroad in outroads:
+                actual = min(per_out, outroad.cells[0].supply())
+                outroad.source.curr += actual  # inject directly into source
+                total_sent += actual
+ 
+            # drain from inroad stop line
+            inroad.cells[-1].curr -= total_sent
+            inroad.cells[-1].curr = max(0.0, inroad.cells[-1].curr)
+ 
+        # step all roads — CTM drains source naturally
+        for road in self.inroads + self.outroads:
             road.step()
-
-        for road in self.outroads:
-            road.step()
-
+ 
         self.time_in_phase += 1
-
+ 
 
     def observe(self) -> IntersectionObservation:
         return IntersectionObservation(

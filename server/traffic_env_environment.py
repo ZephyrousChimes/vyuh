@@ -185,15 +185,6 @@ class TrafficEnvironment(Environment):
         return self._observe(reward=0.0, done=False)
 
 
-    default_action = TrafficAction(
-        phase_routes = [
-            [
-                ('north_in', 'east_out'), ('east_in', 'south_out'),
-                ('south_in', 'west_out'), ('west_in', 'north_out'),
-            ]
-        ]
-    )
-
     def step(
         self,
         action: TrafficAction,
@@ -201,7 +192,6 @@ class TrafficEnvironment(Environment):
         **kwargs: Any,
     ) -> TrafficObservation:
         
-        print(self._intersection.observe())
         if self._intersection is None:
             raise ValueError('Tried to step with None as self._intersection')
         
@@ -219,9 +209,20 @@ class TrafficEnvironment(Environment):
             road = self._all_roads[self._priority_config["approach"]]
             road.source.curr += 5.0
 
+        default_action = TrafficAction(
+            phase_routes = [
+                [
+                    'north_in_east_out', 'east_in_south_out',
+                    'south_in_west_out', 'west_in_north_out',
+                ]
+            ]
+        )
+
         # apply phase action
         if action.phase_routes:
-            route_ids = [r for group in action.phase_routes for r, *_ in group]
+            # route_ids = [r for group in action.phase_routes for r, *_ in group]
+            route_ids = action.phase_routes[0]
+            # TODO: Change the route_ids above... can take only one intersection
             self._intersection.set_phase(route_ids)
 
         # Poisson arrivals
@@ -279,7 +280,7 @@ class TrafficEnvironment(Environment):
         ]
 
         conflicts = set([
-            (routes[i].id, routes[j].id)
+            (str(routes[i].id), str(routes[j].id))
             for i, j in [
                 (0, 3),  (0, 4),  (0, 6),  (0, 8),  (0, 10), (0, 11),
                 (2, 3),  (2, 4),  (2, 6),  (2, 8),  (2, 10), (2, 11),
