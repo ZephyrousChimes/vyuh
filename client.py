@@ -12,46 +12,87 @@ from openenv.core import EnvClient
 from openenv.core.client_types import StepResult
 from openenv.core.env_server.types import State
 
-from .models import TrafficAction, TrafficObservation, RoadNetwork
+from .models import TrafficAction, TrafficObservation
 
 
 class TrafficEnv(
     EnvClient[TrafficAction, TrafficObservation, State]
 ):
-    """Client for the Traffic Signal Control Environment."""
+    """
+    Client for the Traffic Env Environment.
+
+    This client maintains a persistent WebSocket connection to the environment server,
+    enabling efficient multi-step interactions with lower latency.
+    Each client instance has its own dedicated environment session on the server.
+
+    Example:
+        >>> # Connect to a running server
+        >>> with TrafficEnv(base_url="http://localhost:8000") as client:
+        ...     result = client.reset()
+        ...     print(result.observation.echoed_message)
+        ...
+        ...     result = client.step(TrafficAction(message="Hello!"))
+        ...     print(result.observation.echoed_message)
+
+    Example with Docker:
+        >>> # Automatically start container and connect
+        >>> client = TrafficEnv.from_docker_image("traffic_env-env:latest")
+        >>> try:
+        ...     result = client.reset()
+        ...     result = client.step(TrafficAction(message="Test"))
+        ... finally:
+        ...     client.close()
+    """
 
     def _step_payload(self, action: TrafficAction) -> Dict:
-        """Convert TrafficAction to JSON payload."""
+        """
+        Convert TrafficAction to JSON payload for step message.
+
+        Args:
+            action: TrafficAction instance
+
+        Returns:
+            Dictionary representation suitable for JSON encoding
+        """
         return {
-            "decisions": [
-                {
-                    "intersection_id": d.intersection_id,
-                    "phase_id": d.phase_id,
-                }
-                for d in action.decisions
-            ]
+            "message": action.message,
         }
 
     def _parse_result(self, payload: Dict) -> StepResult[TrafficObservation]:
-        """Parse server response into StepResult[TrafficObservation]."""
-        obs_data = payload.get("observation", payload)  # some servers nest, some don't
+        """
+        Parse server response into StepResult[TrafficObservation].
 
+        Args:
+            payload: JSON response data from server
+
+        Returns:
+            StepResult with TrafficObservation
+        """
+        obs_data = payload.get("observation", {})
         observation = TrafficObservation(
-            road_network=RoadNetwork(**obs_data["road_network"]),
-            task=obs_data.get("task", "easy"),
-            step=obs_data.get("step", 0),
+            echoed_message=obs_data.get("echoed_message", ""),
+            message_length=obs_data.get("message_length", 0),
             done=payload.get("done", False),
-            reward=payload.get("reward", 0.0),
+            reward=payload.get("reward"),
+            metadata=obs_data.get("metadata", {}),
         )
 
         return StepResult(
             observation=observation,
-            reward=payload.get("reward", 0.0),
+            reward=payload.get("reward"),
             done=payload.get("done", False),
         )
 
     def _parse_state(self, payload: Dict) -> State:
-        """Parse server response into State object."""
+        """
+        Parse server response into State object.
+
+        Args:
+            payload: JSON response from state request
+
+        Returns:
+            State object with episode_id and step_count
+        """
         return State(
             episode_id=payload.get("episode_id"),
             step_count=payload.get("step_count", 0),

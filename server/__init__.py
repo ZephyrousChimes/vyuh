@@ -8,4 +8,6 @@
 
 from .traffic_env_environment import TrafficEnvironment
 
-__all__ = ["TrafficEnvironment"]
+from .simulation import * 
+
+__all__ = ["TrafficEnvironment", "simulation"]

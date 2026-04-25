@@ -43,19 +43,17 @@ except ModuleNotFoundError:
     from server.traffic_env_environment import TrafficEnvironment
 
 
-PORT = 8000
-HOST = "0.0.0.0"
-
-
 # Create the app with web interface and README integration
 app = create_app(
     TrafficEnvironment,
     TrafficAction,
     TrafficObservation,
     env_name="traffic_env",
-    max_concurrent_envs=10,  # increase this number to allow more concurrent WebSocket sessions
+    max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
 )
 
+HOST = '0.0.0.0'
+PORT = 8000
 
 def main():
     """
@@ -66,12 +64,15 @@ def main():
         uv run --project . server --port 8001
         python -m traffic_env.server.app
 
+    Args:
+        host: Host address to bind to (default: "0.0.0.0")
+        port: Port number to listen on (default: 8000)
+
     For production deployments, consider using uvicorn directly with
     multiple workers:
         uvicorn traffic_env.server.app:app --workers 4
     """
     import uvicorn
-
     uvicorn.run(app, host=HOST, port=PORT)
 
 
@@ -81,7 +82,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
-
     PORT = args.port
-
     main()
