@@ -200,6 +200,8 @@ class TrafficEnvironment(Environment):
         timeout_s: Optional[float] = None,
         **kwargs: Any,
     ) -> TrafficObservation:
+        
+        print(self._intersection.observe())
         if self._intersection is None:
             raise ValueError('Tried to step with None as self._intersection')
         
