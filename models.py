@@ -1,3 +1,34 @@
+from pydantic import BaseModel, Field
+from typing import List, Tuple, NewType
+
+class CellObservation(BaseModel):
+    curr: float
+
+
+class RoadObservation(BaseModel):
+    id: str
+    cells: List[CellObservation]
+
+
+IntersectionId = NewType('IntersectionId', str)
+RouteId = NewType('RouteId', str)
+
+
+class IntersectionObservation(BaseModel):
+
+    id: str
+
+    inroads: List[str]
+    outroads: List[str]
+    routes: List[Tuple[str, str, str]]
+
+    conflicts: List[Tuple[str, str]]
+
+    current_phase: List[str]
+    time_in_phase: float = Field(default=0.0)
+    min_green_time: float = Field(default=0.0)
+    
+
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 #
@@ -13,9 +44,6 @@ The traffic_env environment is a simple test environment that echoes back messag
 from openenv.core.env_server.types import Action, Observation
 from pydantic import BaseModel, Field
 from typing import List, Tuple, Optional
-
-from models.intersection import IntersectionObservation
-from models.road import RoadObservation
 
 
 class TrafficAction(Action):

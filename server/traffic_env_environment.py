@@ -23,13 +23,13 @@ from openenv.core.env_server.types import State
 
 try:
     from ..models import TrafficAction, TrafficObservation, PriorityVehicleObservation
-    from ..models.road import RoadObservation, CellObservation
-    from ..models.intersection import IntersectionObservation
+    from ..models import RoadObservation, CellObservation
+    from ..models import IntersectionObservation
     from .simulation import Cell, Road, Intersection, Route
 except ImportError:
     from models import TrafficAction, TrafficObservation, PriorityVehicleObservation
-    from models.road import RoadObservation, CellObservation
-    from models.intersection import IntersectionObservation
+    from models import RoadObservation, CellObservation
+    from models import IntersectionObservation
     from server.simulation import Cell, Road, Intersection, Route
 
 
